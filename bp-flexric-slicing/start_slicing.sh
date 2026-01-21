@@ -106,39 +106,51 @@ add_ue_subscribers() {
     
     log_info "MySQL pod: $mysql_pod"
     
-    # Add UE1 for Slice 1 (IMSI: 001010000000101)
-    log_info "Adding UE1 (Slice 1) - IMSI: 001010000000101"
-    kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO AuthenticationSubscription (ueid, authenticationMethod, encPermanentKey, protectionParameterId, sequenceNumber, authenticationManagementField, algorithmId, encOpcKey, encTopcKey, vectorGenerationInHss, n5telecomMacKey, simMac, simOpc, simOp, usimMac, usimOpc, usimOp)
-    VALUES ('001010000000101', '5G_AKA', 'fec86ba6eb707ed08905757b1bb44b8f', 'fec86ba6eb707ed08905757b1bb44b8f', '{\"sqn\": \"000000000020\", \"sqnScheme\": \"NON_TIME_BASED\", \"lastIndexes\": {\"ausf\": 0}}', '8000', 'milenage', 'C42449363BBAD02B66D16BC975D77CC1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-    " 2>/dev/null || log_warning "UE1 may already exist"
+    # ============================================================
+    # UE1 for Slice 1 (IMSI: 001010000000101, SST=1, DNN=slice1)
+    # ============================================================
+    log_info "Adding UE1 (Slice 1 - eMBB) - IMSI: 001010000000101"
     
+    # Authentication - use REPLACE to ensure correct data even if entry exists with wrong format
     kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO SessionManagementSubscriptionData (ueid, servingPlmnid, singleNssai, dnnConfigurations)
-    VALUES ('001010000000101', '00101', '{\"sst\": 1, \"sd\": \"000001\"}', '{\"slice1\":{\"pduSessionTypes\":{ \"defaultSessionType\": \"IPV4\"},\"sscModes\": {\"defaultSscMode\": \"SSC_MODE_1\"},\"5gQosProfile\": {\"5qi\": 9,\"arp\":{\"priorityLevel\": 8,\"preemptCap\": \"NOT_PREEMPT\",\"preemptVuln\":\"NOT_PREEMPTABLE\"},\"priorityLevel\":1},\"sessionAmbr\":{\"uplink\":\"1000Mbps\", \"downlink\":\"1000Mbps\"},\"staticIpAddress\":[]}}');
-    " 2>/dev/null || log_warning "UE1 session data may already exist"
+    REPLACE INTO AuthenticationSubscription (ueid, authenticationMethod, encPermanentKey, protectionParameterId, sequenceNumber, authenticationManagementField, algorithmId, encOpcKey, supi)
+    VALUES ('001010000000101', '5G_AKA', 'fec86ba6eb707ed08905757b1bb44b8f', 'fec86ba6eb707ed08905757b1bb44b8f', '{\"sqn\": \"000000000020\", \"sqnScheme\": \"NON_TIME_BASED\", \"lastIndexes\": {\"ausf\": 0}}', '8000', 'milenage', 'C42449363BBAD02B66D16BC975D77CC1', '001010000000101');
+    " 2>/dev/null || log_warning "UE1 auth insert failed"
     
+    # Session Management - SD must be "1" not "000001" for proper matching
     kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO AccessAndMobilitySubscriptionData (ueid, servingPlmnid, supportedFeatures, gpsis, internalGroupIds, sharedVnGroupDataIds, subscribedUeAmbr, nssai, ratRestrictions, forbiddenAreas, serviceAreaRestriction, coreNetworkTypeRestrictions, rfspIndex, subsRegTimer, ueUsageType, mpsPriority, mcsPriority, activeTime, sorInfo, sorInfoExpectInd, sorafRetrieval, sorUpdateIndicatorList, upuInfo, micoAllowed, sharedAmDataIds, odtEntryList, subscriptionDataSets, dlPacketCount, traceData, additionalTraceData)
-    VALUES ('001010000000101', '00101', NULL, NULL, NULL, NULL, '{\"uplink\":\"1Gbps\",\"downlink\":\"2Gbps\"}', '{\"defaultSingleNssais\":[{\"sst\":1,\"sd\":\"000001\"}]}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-    " 2>/dev/null || log_warning "UE1 access data may already exist"
+    REPLACE INTO SessionManagementSubscriptionData (ueid, servingPlmnid, singleNssai, dnnConfigurations)
+    VALUES ('001010000000101', '00101', '{\"sst\": 1, \"sd\": \"1\"}', '{\"slice1\":{\"pduSessionTypes\":{\"defaultSessionType\": \"IPV4\"},\"sscModes\": {\"defaultSscMode\": \"SSC_MODE_1\"},\"5gQosProfile\": {\"5qi\": 9,\"arp\":{\"priorityLevel\": 8,\"preemptCap\": \"NOT_PREEMPT\",\"preemptVuln\":\"NOT_PREEMPTABLE\"},\"priorityLevel\":1},\"sessionAmbr\":{\"uplink\":\"1000Mbps\", \"downlink\":\"1000Mbps\"},\"staticIpAddress\":[{\"ipv4Addr\": \"12.1.1.101\"}]}}');
+    " 2>/dev/null || log_warning "UE1 session insert failed"
     
-    # Add UE2 for Slice 2 (IMSI: 001010000000102)
-    log_info "Adding UE2 (Slice 2) - IMSI: 001010000000102"
+    # Access and Mobility
     kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO AuthenticationSubscription (ueid, authenticationMethod, encPermanentKey, protectionParameterId, sequenceNumber, authenticationManagementField, algorithmId, encOpcKey, encTopcKey, vectorGenerationInHss, n5telecomMacKey, simMac, simOpc, simOp, usimMac, usimOpc, usimOp)
-    VALUES ('001010000000102', '5G_AKA', 'fec86ba6eb707ed08905757b1bb44b8f', 'fec86ba6eb707ed08905757b1bb44b8f', '{\"sqn\": \"000000000020\", \"sqnScheme\": \"NON_TIME_BASED\", \"lastIndexes\": {\"ausf\": 0}}', '8000', 'milenage', 'C42449363BBAD02B66D16BC975D77CC1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-    " 2>/dev/null || log_warning "UE2 may already exist"
+    REPLACE INTO AccessAndMobilitySubscriptionData (ueid, servingPlmnid, subscribedUeAmbr, nssai)
+    VALUES ('001010000000101', '00101', '{\"uplink\":\"1000Mbps\",\"downlink\":\"1000Mbps\"}', '{\"defaultSingleNssais\":[{\"sst\":1,\"sd\":\"1\"}],\"singleNssais\":[]}');
+    " 2>/dev/null || log_warning "UE1 access insert failed"
     
-    kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO SessionManagementSubscriptionData (ueid, servingPlmnid, singleNssai, dnnConfigurations)
-    VALUES ('001010000000102', '00101', '{\"sst\": 2, \"sd\": \"000001\"}', '{\"slice2\":{\"pduSessionTypes\":{ \"defaultSessionType\": \"IPV4\"},\"sscModes\": {\"defaultSscMode\": \"SSC_MODE_1\"},\"5gQosProfile\": {\"5qi\": 1,\"arp\":{\"priorityLevel\": 8,\"preemptCap\": \"NOT_PREEMPT\",\"preemptVuln\":\"NOT_PREEMPTABLE\"},\"priorityLevel\":1},\"sessionAmbr\":{\"uplink\":\"500Mbps\", \"downlink\":\"500Mbps\"},\"staticIpAddress\":[]}}');
-    " 2>/dev/null || log_warning "UE2 session data may already exist"
+    # ============================================================
+    # UE2 for Slice 2 (IMSI: 001010000000102, SST=2, DNN=slice2)
+    # ============================================================
+    log_info "Adding UE2 (Slice 2 - uRLLC) - IMSI: 001010000000102"
     
+    # Authentication
     kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
-    INSERT IGNORE INTO AccessAndMobilitySubscriptionData (ueid, servingPlmnid, supportedFeatures, gpsis, internalGroupIds, sharedVnGroupDataIds, subscribedUeAmbr, nssai, ratRestrictions, forbiddenAreas, serviceAreaRestriction, coreNetworkTypeRestrictions, rfspIndex, subsRegTimer, ueUsageType, mpsPriority, mcsPriority, activeTime, sorInfo, sorInfoExpectInd, sorafRetrieval, sorUpdateIndicatorList, upuInfo, micoAllowed, sharedAmDataIds, odtEntryList, subscriptionDataSets, dlPacketCount, traceData, additionalTraceData)
-    VALUES ('001010000000102', '00101', NULL, NULL, NULL, NULL, '{\"uplink\":\"500Mbps\",\"downlink\":\"1Gbps\"}', '{\"defaultSingleNssais\":[{\"sst\":2,\"sd\":\"000001\"}]}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-    " 2>/dev/null || log_warning "UE2 access data may already exist"
+    REPLACE INTO AuthenticationSubscription (ueid, authenticationMethod, encPermanentKey, protectionParameterId, sequenceNumber, authenticationManagementField, algorithmId, encOpcKey, supi)
+    VALUES ('001010000000102', '5G_AKA', 'fec86ba6eb707ed08905757b1bb44b8f', 'fec86ba6eb707ed08905757b1bb44b8f', '{\"sqn\": \"000000000020\", \"sqnScheme\": \"NON_TIME_BASED\", \"lastIndexes\": {\"ausf\": 0}}', '8000', 'milenage', 'C42449363BBAD02B66D16BC975D77CC1', '001010000000102');
+    " 2>/dev/null || log_warning "UE2 auth insert failed"
+    
+    # Session Management
+    kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
+    REPLACE INTO SessionManagementSubscriptionData (ueid, servingPlmnid, singleNssai, dnnConfigurations)
+    VALUES ('001010000000102', '00101', '{\"sst\": 2, \"sd\": \"1\"}', '{\"slice2\":{\"pduSessionTypes\":{\"defaultSessionType\": \"IPV4\"},\"sscModes\": {\"defaultSscMode\": \"SSC_MODE_1\"},\"5gQosProfile\": {\"5qi\": 1,\"arp\":{\"priorityLevel\": 8,\"preemptCap\": \"NOT_PREEMPT\",\"preemptVuln\":\"NOT_PREEMPTABLE\"},\"priorityLevel\":1},\"sessionAmbr\":{\"uplink\":\"500Mbps\", \"downlink\":\"500Mbps\"},\"staticIpAddress\":[{\"ipv4Addr\": \"12.2.1.102\"}]}}');
+    " 2>/dev/null || log_warning "UE2 session insert failed"
+    
+    # Access and Mobility
+    kubectl exec -n $NAMESPACE "$mysql_pod" -- mysql -u test -ptest oai_db -e "
+    REPLACE INTO AccessAndMobilitySubscriptionData (ueid, servingPlmnid, subscribedUeAmbr, nssai)
+    VALUES ('001010000000102', '00101', '{\"uplink\":\"500Mbps\",\"downlink\":\"1000Mbps\"}', '{\"defaultSingleNssais\":[{\"sst\":2,\"sd\":\"1\"}],\"singleNssais\":[]}');
+    " 2>/dev/null || log_warning "UE2 access insert failed"
     
     log_success "UE subscribers added successfully"
 }
