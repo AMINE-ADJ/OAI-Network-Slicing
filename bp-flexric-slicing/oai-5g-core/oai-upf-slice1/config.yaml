@@ -1,0 +1,75 @@
+# OAI CN Configuration File - UPF Slice 1 (eMBB: SST=1, SD=1)
+
+## NOTE ON YAML ANCHORS ##
+# We use YAML anchors to ease the configuration and to avoid duplicating parts of the configuration.
+
+############# Common configuration
+
+log_level:
+  general: debug
+
+register_nf:
+  general: yes
+
+http_version: 2
+
+## Slice 1 configuration: eMBB (SST=1, SD=1)
+snssais:
+  - &slice1
+    sst: 1
+    sd: 000001 # in hex
+
+############## SBI Interfaces
+nfs:
+  smf:
+    host: oai-smf-slice1
+    sbi:
+      port: 80
+    n4:
+      port: 8805
+  upf:
+    host: oai-upf-slice1
+    sbi:
+      port: 80
+      api_version: v1
+      interface_name: eth0
+    n3:
+      interface_name: eth0
+      port: 2152
+    n4:
+      interface_name: eth0
+      port: 8805
+    n6:
+      interface_name: eth0
+    n9:
+      interface_name: eth0
+      port: 2152
+  nrf:
+    host: oai-nrf
+    sbi:
+      port: 80
+      api_version: v1
+
+############## NF-specific configuration
+upf:
+  support_features:
+    enable_bpf_datapath: no
+    enable_snat: yes
+  remote_n6_gw: 127.0.0.1
+  upf_info:
+    sNssaiUpfInfoList:
+    - sNssai: *slice1
+      dnnUpfInfoList:
+        - dnn: slice1
+
+## DNN configuration for Slice 1
+dnns:
+  - dnn: "slice1"
+    pdu_session_type: "IPV4"
+    ipv4_subnet: "12.1.1.0/24"
+  - dnn: "oai"
+    pdu_session_type: "IPV4"
+    ipv4_subnet: "12.1.1.128/25"
+  - dnn: "ims"
+    pdu_session_type: "IPV4V6"
+    ipv4_subnet: "14.1.1.2/24"

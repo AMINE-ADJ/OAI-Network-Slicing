@@ -1,0 +1,111 @@
+# OAI CN Configuration File - AMF with Multi-Slice Support
+
+## NOTE ON YAML ANCHORS ##
+# We use YAML anchors to ease the configuration and to avoid duplicating parts of the configuration.
+
+############# Common configuration
+
+log_level:
+  general: debug
+
+register_nf:
+  general: no  # Disable NRF registration since we connect SMFs directly
+
+http_version: 2
+
+## Slice configuration: 2 slices
+## Slice 1: eMBB (SST=1, SD=1)
+## Slice 2: uRLLC (SST=2, SD=1)
+snssais:
+  - &slice1
+    sst: 1
+    sd: 000001
+  - &slice2
+    sst: 2
+    sd: 000001
+
+############## SBI Interfaces
+nfs:
+  amf:
+    host: oai-amf
+    sbi:
+      port: 80
+      api_version: v1
+      interface_name: eth0
+    n2:
+      interface_name: eth0
+      port: 38412
+  smf:
+    host: oai-smf-slice1  # Default SMF for slice selection
+    sbi:
+      port: 80
+      api_version: v1
+  ausf:
+    host: oai-ausf
+    sbi:
+      port: 80
+      api_version: v1
+  nrf:
+    host: oai-nrf
+    sbi:
+      port: 80
+      api_version: v1
+  nssf:
+    host: oai-nssf
+    sbi:
+      port: 80
+      api_version: v1
+
+#### Database configuration
+database:
+  host: mysql
+  user: test
+  type: mysql
+  password: test
+  database_name: oai_db
+  generate_random: true
+  connection_timeout: 300
+
+############## NF-specific configuration
+amf:
+  amf_name: "OAI-AMF"
+  support_features_options:
+    enable_simple_scenario: no
+    enable_nssf: no
+    enable_smf_selection: yes
+  relative_capacity: 30
+  statistics_timer_interval: 20
+  emergency_support: false
+  served_guami_list:
+    - mcc: 001
+      mnc: 01
+      amf_region_id: 01
+      amf_set_id: 001
+      amf_pointer: 01
+  plmn_support_list:
+    - mcc: 001
+      mnc: 01
+      tac: 0x0001
+      nssai:
+        - *slice1
+        - *slice2
+  # SMF selection based on S-NSSAI
+  smf_pool:
+    - host: oai-smf-slice1
+      port: 80
+      version: v1
+      snssai:
+        - *slice1
+    - host: oai-smf-slice2
+      port: 80
+      version: v1
+      snssai:
+        - *slice2
+  supported_integrity_algorithms:
+    - "NIA0"
+    - "NIA1"
+    - "NIA2"
+  supported_encryption_algorithms:
+    - "NEA0"
+    - "NEA1"
+    - "NEA2"

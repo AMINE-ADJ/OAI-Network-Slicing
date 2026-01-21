@@ -1,0 +1,83 @@
+# OAI CN Configuration File - SMF Slice 1 (eMBB: SST=1, SD=1)
+
+## NOTE ON YAML ANCHORS ##
+# We use YAML anchors to ease the configuration and to avoid duplicating parts of the configuration.
+
+############# Common configuration
+
+log_level:
+  general: debug
+
+register_nf:
+  general: yes
+
+http_version: 2
+
+## Slice 1 configuration: eMBB (SST=1, SD=1)
+snssais:
+  - &slice1
+    sst: 1
+    sd: 000001 # in hex
+
+############## SBI Interfaces
+nfs:
+  amf:
+    host: oai-amf
+    sbi:
+      port: 80
+      api_version: v1
+  smf:
+    host: oai-smf-slice1
+    sbi:
+      port: 80
+      api_version: v1
+      interface_name: eth0
+    n4:
+      interface_name: eth0
+      port: 8805
+  udm:
+    host: oai-udm
+    sbi:
+      port: 80
+      api_version: v1
+  nrf:
+    host: oai-nrf
+    sbi:
+      port: 80
+      api_version: v1
+
+############## NF-specific configuration
+smf:
+  ue_mtu: 1500
+  support_features:
+    use_local_subscription_info: yes
+    use_local_pcc_rules: yes
+    discover_upf: no  # We specify UPF directly for slice isolation
+  upfs:
+    - host: oai-upf-slice1
+      config:
+        enable_usage_reporting: no
+  ue_dns:
+    primary_ipv4: "8.8.8.8"
+    primary_ipv6: "2001:4860:4860::8888"
+    secondary_ipv4: "8.8.4.4"
+    secondary_ipv6: "2001:4860:4860::8844"
+  # Slice 1 SMF Info
+  smf_info:
+    sNssaiSmfInfoList:
+      - sNssai: *slice1
+        dnnSmfInfoList:
+          - dnn: "slice1"
+  local_subscription_infos:
+    - single_nssai: *slice1
+      dnn: "slice1"
+      qos_profile:
+        5qi: 9
+        session_ambr_ul: "500Mbps"
+        session_ambr_dl: "1000Mbps"
+
+## DNN configuration for Slice 1
+dnns:
+  - dnn: "slice1"
+    pdu_session_type: "IPV4"
+    ipv4_subnet: "12.1.1.0/24"
