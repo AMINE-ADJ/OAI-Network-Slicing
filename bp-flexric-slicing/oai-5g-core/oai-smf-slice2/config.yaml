@@ -73,8 +73,8 @@ smf:
       dnn: "slice2"
       qos_profile:
         5qi: 1  # Lower 5QI for uRLLC
-        session_ambr_ul: "200Mbps"
-        session_ambr_dl: "400Mbps"
+        session_ambr_ul: "20Mbps"
+        session_ambr_dl: "40Mbps"
 
 ## DNN configuration for Slice 2
 dnns:

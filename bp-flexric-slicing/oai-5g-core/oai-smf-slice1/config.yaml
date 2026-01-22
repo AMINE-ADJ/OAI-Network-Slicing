@@ -73,8 +73,8 @@ smf:
       dnn: "slice1"
       qos_profile:
         5qi: 9
-        session_ambr_ul: "500Mbps"
-        session_ambr_dl: "1000Mbps"
+        session_ambr_ul: "50Mbps"
+        session_ambr_dl: "100Mbps"
 
 ## DNN configuration for Slice 1
 dnns:
