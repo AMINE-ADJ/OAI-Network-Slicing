@@ -1,361 +1,285 @@
-<!-- # 5G/KPM xApp Experimentation Platform
-
-This project implements a complete 5G experimentation platform using OAI (OpenAirInterface) and FlexRIC, designed for developing and monitoring KPM (Key Performance Metric) xApps.
+# 5G Network Slicing Project - Complete Guide
 
 ## Project Overview
 
-The system deploys a full 5G network (Core, RAN, UE) and a Near-RT RIC (FlexRIC) on a Kubernetes cluster (Minikube). It includes a custom xApp for monitoring real-time network metrics.
+This project deploys a complete **5G network with Network Slicing** using OpenAirInterface (OAI) on Kubernetes (Minikube). It demonstrates QoS differentiation between two slices:
 
-### Components
+| Slice | Type | SST | SD | DNN | 5QI | IP Pool | Purpose |
+|-------|------|-----|-----|-----|-----|---------|---------|
+| **Slice 1** | eMBB | 1 | 1 | slice1 | 9 | 12.1.1.0/24 | High bandwidth (video, data) |
+| **Slice 2** | uRLLC | 2 | 1 | slice2 | 1 | 12.2.1.0/24 | Low latency (robotics, gaming) |
 
-- **OAI 5G Core**: AMF, SMF, UPF, NRF, UDM, UDR, AUSF, MySQL.
-- **FlexRIC**: Near-RT RIC with E2 interface support.
-- **OAI gNB**: 5G Base Station (simulated RF).
-- **OAI NR-UE**: 5G User Equipment (simulated).
-- **KPM xApp**: Custom xApp for metric collection.
+---
 
-## Quick Start
+## 1. Deployment
 
-### 1. Prerequisite
-- Linux OS (Ubuntu/Arch/Fedora)
-- Minikube & Docker
-- Ansible (for deployment orchestration)
+### Deploy the Full Network
+```bash
+cd /mnt/Studies/Sorbonne/Nova/Network-Slicing-using-OAI-and-OAI-5GC
+./bp-flexric-slicing/start_slicing.sh deploy
+```
 
-### 2. Deploy Network
-To deploy the entire 5G infrastructure (fresh start):
+This deploys 14 pods: MySQL, NRF, UDR, UDM, AUSF, AMF, SMF-Slice1, SMF-Slice2, UPF-Slice1, UPF-Slice2, FlexRIC, gNB, UE1, UE2.
+
+### Cleanup
+```bash
+./bp-flexric-slicing/start_slicing.sh cleanup
+```
+
+---
+
+## 2. Verify All Pods Running
 
 ```bash
-./start_5g.sh
+kubectl get pods -n blueprint
 ```
 
-This script will:
-1. Start/Check Minikube.
-2. Clean up any stale deployments.
-3. specific Ansible playbook to deploy all components in the correct order.
+**Expected output:** All 14 pods should be `Running` (1/1 Ready).
 
-_Deployment takes approximately 3-5 minutes._
+---
 
-### 3. Verify Deployment
-Check the status of the pods:
+## 3. Verify AMF Registration (gNB & UEs)
 
+### Check gNB Registration
 ```bash
-kubectl get pods -n blueprint -w
+kubectl logs -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-amf | head -1 | cut -d'/' -f2) | grep -i "gNB"
 ```
-Wait until all pods (Core, gNB, UE, FlexRIC) are in `Running` state.
 
-## Data Collection
-
-To generate traffic (iperf3) and collect KPM metrics:
-
+### Check UE Registrations
 ```bash
-./start-collection.sh <duration_in_seconds> <bandwidth>
+kubectl logs -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-amf | head -1 | cut -d'/' -f2) | grep -E "REGISTERED|Registration"
 ```
 
-**Example:** Run for 60 seconds with 20Mbps traffic:
+### Verify Both UEs Connected
 ```bash
-./start-collection.sh 60 20M
+kubectl logs -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-amf | head -1 | cut -d'/' -f2) | grep -E "001010000000101|001010000000102"
 ```
 
-This script handles:
-1. Verifying UPF and UE connectivity.
-2. Auto-installing `iperf3` on the UPF if missing.
-3. Starting the xApp monitor.
-4. Generating traffic from UE -> UPF.
-5. Saving results to `cell_xapp_monitor/data/`.
+---
 
-## Architecture
+## 4. Basic Connectivity Test (UE → UPF)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Minikube                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                   5G Core Network                    │   │
-│  │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐   │   │
-│  │  │ NRF │ │ AMF │ │ SMF │ │ UPF │ │ UDM │ │ UDR │   │   │
-│  │  └─────┘ └──┬──┘ └──┬──┘ └──┬──┘ └─────┘ └─────┘   │   │
-│  └─────────────┼───────┼───────┼─────────────────────────┘   │
-│                │       │       │                            │
-│  ┌─────────────┼───────┼───────┼─────────────────────────┐   │
-│  │             │    FlexRIC    │                         │   │
-│  │        ┌────┴───────┴───────┴────┐                    │   │
-│  │        │      Near-RT RIC        │◄──── xApps        │   │
-│  │        └────────────┬────────────┘                    │   │
-│  │                     │ E2                                 │
-│  └─────────────────────┼─────────────────────────────────┘   │
-│                        │                                    │
-│  ┌─────────────────────┼─────────────────────────────────┐   │
-│  │              ┌──────▼───┐                             │   │
-│  │              │   gNB    │ (RF Simulator)              │   │
-│  │              └────┬─────┘                             │   │
-│  │                   │                                   │   │
-│  │              ┌────▼─────┐                             │   │
-│  │              │    UE    │ (IP: 12.1.1.2)              │   │
-│  │              └──────────┘                             │   │
-│  └───────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Directory Structure
-
-- `start_5g.sh`: Main deployment script.
-- `start-collection.sh`: Traffic generation and data collection script.
-- `roles/`: Ansible roles for component deployment.
-- `inventories/`: Ansible inventory configurations.
-- `cell_xapp_monitor/`: Python scripts for xApp monitoring and data storage. -->
-
-
-
-# 5G Network Slicing with OAI and FlexRIC
-
-This project deploys a complete 5G network with **network slicing** using OpenAirInterface (OAI) components on Kubernetes (minikube).
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              5G Core Network                                │
-│  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐          │
-│  │ MySQL │  │  NRF  │  │  UDR  │  │  UDM  │  │ AUSF  │  │  AMF  │          │
-│  └───────┘  └───────┘  └───────┘  └───────┘  └───────┘  └───────┘          │
-│                                                                             │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────┐          │
-│  │      Slice 1 (eMBB)         │  │      Slice 2 (uRLLC)        │          │
-│  │  SST=1, SD=1                │  │  SST=2, SD=1                │          │
-│  │  ┌───────────┐ ┌──────────┐ │  │  ┌───────────┐ ┌──────────┐ │          │
-│  │  │SMF-slice1 │ │UPF-slice1│ │  │  │SMF-slice2 │ │UPF-slice2│ │          │
-│  │  └───────────┘ └──────────┘ │  │  └───────────┘ └──────────┘ │          │
-│  │  IP Pool: 12.1.1.0/24       │  │  IP Pool: 12.2.1.0/24       │          │
-│  └─────────────────────────────┘  └─────────────────────────────┘          │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                              ┌─────┴─────┐
-                              │  FlexRIC  │ (E2 Interface)
-                              └─────┬─────┘
-                                    │
-┌───────────────────────────────────┴─────────────────────────────────────────┐
-│                              RAN (gNB)                                      │
-│                         RF Simulator Mode                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    │                               │
-              ┌─────┴─────┐                   ┌─────┴─────┐
-              │ UE Slice1 │                   │ UE Slice2 │
-              │ SST=1,SD=1│                   │ SST=2,SD=1│
-              │ 12.1.1.x  │                   │ 12.2.1.x  │
-              └───────────┘                   └───────────┘
-```
-
-## Prerequisites
-
-- **minikube** installed and running
-- **kubectl** configured
-- **helm** v3+
-- At least **8GB RAM** and **4 CPUs** for minikube
-
-### Start minikube
-
+### Get UE IP Addresses
 ```bash
-minikube start --cpus=4 --memory=8192 --driver=docker
+# UE1 - Slice 1
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice1 | head -1 | cut -d'/' -f2) -c nr-ue -- ip addr show oaitun_ue1 | grep inet
+
+# UE2 - Slice 2  
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice2 | head -1 | cut -d'/' -f2) -c nr-ue -- ip addr show oaitun_ue1 | grep inet
 ```
 
-## Quick Start
+**Expected:** UE1 should have IP in `12.1.1.x` range, UE2 in `12.2.1.x` range.
 
-### 1. Deploy the entire 5G slicing infrastructure
-
+### Ping UPF Gateway from UE1
 ```bash
-cd bp-flexric-slicing
-./start_slicing.sh deploy
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice1 | head -1 | cut -d'/' -f2) -c nr-ue -- ping -c 3 -I oaitun_ue1 12.1.1.1
 ```
 
-This will deploy in order:
-1. Core Network (MySQL, NRF, UDR, UDM, AUSF, AMF)
-2. Slice 1 components (SMF-slice1, UPF-slice1)
-3. Slice 2 components (SMF-slice2, UPF-slice2)
-4. FlexRIC (E2 controller)
-5. gNB (with E2 agent)
-6. UE for Slice 1
-7. UE for Slice 2
-
-### 2. Check deployment status
-
+### Ping UPF Gateway from UE2
 ```bash
-./start_slicing.sh status
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice2 | head -1 | cut -d'/' -f2) -c nr-ue -- ping -c 3 -I oaitun_ue1 12.2.1.1
 ```
 
-Expected output: **14 pods running** in the `blueprint` namespace.
-
-### 3. Verify connectivity
-
-```bash
-./start_slicing.sh verify
-```
-
-This checks:
-- UE1 has IP in 12.1.1.0/24 range
-- UE2 has IP in 12.2.1.0/24 range
-- Both UEs can ping their respective UPFs
-
-### 4. Run slicing tests
-
-```bash
-./start_slicing.sh test
-```
-
-This validates:
-- UE1 is correctly assigned to Slice 1
-- UE2 is correctly assigned to Slice 2
-- Cross-slice isolation is maintained
-
-### 5. Run performance benchmarks
-
-```bash
-./start_slicing.sh benchmark
-```
-
-This runs:
-- **Latency tests**: Ping from each UE
-- **Throughput tests**: iperf3 UDP downlink (if available)
-- **Fairness tests**: Cross-slice interference measurement
-
-## Available Commands
-
-| Command | Description |
-|---------|-------------|
-| `./start_slicing.sh deploy` | Deploy entire infrastructure |
-| `./start_slicing.sh cleanup` | Remove all deployed components |
-| `./start_slicing.sh status` | Show pod status |
-| `./start_slicing.sh core` | Deploy only core network |
-| `./start_slicing.sh ran` | Deploy only gNB |
-| `./start_slicing.sh ue` | Deploy only UEs |
-| `./start_slicing.sh flexric` | Deploy only FlexRIC |
-| `./start_slicing.sh subscribers` | Add subscribers to database |
-| `./start_slicing.sh verify` | Verify UE connectivity |
-| `./start_slicing.sh test` | Run slicing validation tests |
-| `./start_slicing.sh benchmark` | Run performance benchmarks |
-
-## Manual Testing
-
-### Check UE IP addresses
-
-```bash
-# UE1 (Slice 1) - should get 12.1.1.x
-kubectl -n blueprint exec -it $(kubectl -n blueprint get pods -l app.kubernetes.io/name=oai-nr-ue-slice1 -o jsonpath='{.items[0].metadata.name}') -- ip addr show oaitun_ue1
-
-# UE2 (Slice 2) - should get 12.2.1.x
-kubectl -n blueprint exec -it $(kubectl -n blueprint get pods -l app.kubernetes.io/name=oai-nr-ue-slice2 -o jsonpath='{.items[0].metadata.name}') -- ip addr show oaitun_ue1
-```
-
-### Test connectivity from UEs
-
+### Ping Internet (8.8.8.8)
 ```bash
 # From UE1
-kubectl -n blueprint exec -it $(kubectl -n blueprint get pods -l app.kubernetes.io/name=oai-nr-ue-slice1 -o jsonpath='{.items[0].metadata.name}') -- ping -c 5 12.1.1.1
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice1 | head -1 | cut -d'/' -f2) -c nr-ue -- ping -c 3 -I oaitun_ue1 8.8.8.8
 
 # From UE2
-kubectl -n blueprint exec -it $(kubectl -n blueprint get pods -l app.kubernetes.io/name=oai-nr-ue-slice2 -o jsonpath='{.items[0].metadata.name}') -- ping -c 5 12.2.1.1
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-ue-slice2 | head -1 | cut -d'/' -f2) -c nr-ue -- ping -c 3 -I oaitun_ue1 8.8.8.8
 ```
 
-### View logs
+---
+
+## 5. Slice Configuration Locations (S-NSSAI)
+
+### AMF Configuration (Routes UEs to correct SMF)
+```bash
+cat bp-flexric-slicing/oai-5g-core/oai-amf/config.yaml | grep -A 20 "plmn_support_list"
+```
+Key: `nssai` section defines supported slices (SST=1,SD=1 and SST=2,SD=1)
+
+### SMF-Slice1 Configuration (eMBB)
+```bash
+cat bp-flexric-slicing/oai-5g-core/oai-smf-slice1/config.yaml | grep -A 10 "snssais"
+```
+
+### SMF-Slice2 Configuration (uRLLC)
+```bash
+cat bp-flexric-slicing/oai-5g-core/oai-smf-slice2/config.yaml | grep -A 10 "snssais"
+```
+
+### UPF-Slice1 Configuration
+```bash
+cat bp-flexric-slicing/oai-5g-core/oai-upf-slice1/config.yaml | grep -A 10 "snssais"
+```
+
+### UPF-Slice2 Configuration
+```bash
+cat bp-flexric-slicing/oai-5g-core/oai-upf-slice2/config.yaml | grep -A 10 "snssais"
+```
+
+### gNB Configuration (Advertises both slices)
+```bash
+cat bp-flexric-slicing/oai-gnb/config.yaml | grep -A 10 "plmn_list"
+```
+
+---
+
+## 6. UE Configuration (Slice Selection)
+
+### UE1 - Requests Slice 1 (eMBB)
+```bash
+cat bp-flexric-slicing/oai-nr-ue-slice1/values.yaml | grep -A 10 "nssai"
+```
+Key settings: `IMSI=001010000000101`, `DNN=slice1`, `SST=1`, `SD=1`
+
+### UE2 - Requests Slice 2 (uRLLC)
+```bash
+cat bp-flexric-slicing/oai-nr-ue-slice2/values.yaml | grep -A 10 "nssai"
+```
+Key settings: `IMSI=001010000000102`, `DNN=slice2`, `SST=2`, `SD=1`
+
+### Database Subscriptions (UDR)
+```bash
+# Check UE1 subscription
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep mysql | head -1 | cut -d'/' -f2) -- mysql -u test -ptest oai_db -e "SELECT ueid, singleNssai FROM SessionManagementSubscriptionData WHERE ueid='001010000000101';"
+
+# Check UE2 subscription
+kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep mysql | head -1 | cut -d'/' -f2) -- mysql -u test -ptest oai_db -e "SELECT ueid, singleNssai FROM SessionManagementSubscriptionData WHERE ueid='001010000000102';"
+```
+
+---
+
+## 7. Performance Testing Commands
+
+### Set Pod Variables First
+```bash
+export NAMESPACE="blueprint"
+export UE1_POD=$(kubectl get pods -n $NAMESPACE -o name | grep oai-nr-ue-slice1 | head -1 | cut -d'/' -f2)
+export UE2_POD=$(kubectl get pods -n $NAMESPACE -o name | grep oai-nr-ue-slice2 | head -1 | cut -d'/' -f2)
+export UPF1_POD=$(kubectl get pods -n $NAMESPACE -o name | grep oai-upf-slice1 | head -1 | cut -d'/' -f2)
+```
+
+---
+
+### TEST A: Fairness Test (Slice Isolation)
+
+**Goal:** Verify that heavy load on Slice 1 doesn't impact Slice 2 latency.
+
+#### Step 1: Baseline latency for UE2 (no load)
+```bash
+kubectl exec -n $NAMESPACE "$UE2_POD" -c nr-ue -- ping -c 10 -i 0.2 -I oaitun_ue1 8.8.8.8
+```
+*Note the average RTT (e.g., ~45ms)*
+
+#### Step 2: Start heavy load on UE1
+```bash
+kubectl exec -n $NAMESPACE "$UE1_POD" -c nr-ue -- timeout 20 ping -f -c 5000 -s 1400 -I oaitun_ue1 12.1.1.1 &
+```
+
+#### Step 3: Measure UE2 latency WHILE UE1 is under load
+```bash
+kubectl exec -n $NAMESPACE "$UE2_POD" -c nr-ue -- ping -c 10 -i 0.2 -I oaitun_ue1 8.8.8.8
+```
+*Compare RTT with baseline - should be similar if slices are isolated*
+
+---
+
+### TEST B: Throughput Test
+
+#### Throughput from UE1 (eMBB - high bandwidth)
+```bash
+# Ping flood test (estimating throughput)
+kubectl exec -n $NAMESPACE "$UE1_POD" -c nr-ue -- ping -f -c 1000 -s 1400 -I oaitun_ue1 12.1.1.1
+```
+*The "time" value can be used to calculate throughput: (1000 × 1428 × 8) / time_ms / 1000 = Mbps*
+
+#### Throughput from UE2 (uRLLC - lower bandwidth)
+```bash
+kubectl exec -n $NAMESPACE "$UE2_POD" -c nr-ue -- ping -f -c 1000 -s 1400 -I oaitun_ue1 12.2.1.1
+```
+
+**Expected:** eMBB should show higher throughput than uRLLC based on AMBR configuration.
+
+---
+
+### TEST C: Latency Test
+
+#### Latency from UE1 (eMBB, 5QI=9)
+```bash
+kubectl exec -n $NAMESPACE "$UE1_POD" -c nr-ue -- ping -c 20 -i 0.1 -I oaitun_ue1 8.8.8.8
+```
+
+#### Latency from UE2 (uRLLC, 5QI=1)
+```bash
+kubectl exec -n $NAMESPACE "$UE2_POD" -c nr-ue -- ping -c 20 -i 0.1 -I oaitun_ue1 8.8.8.8
+```
+
+**Note:** In RF Simulator, latency differences may be minimal because internet RTT (~40ms) dominates. In real deployment, 5QI=1 would have lower latency.
+
+---
+
+## 8. Run Full Demo
 
 ```bash
-# AMF logs
-kubectl -n blueprint logs -f deployment/oai-amf
-
-# SMF Slice 1 logs
-kubectl -n blueprint logs -f deployment/oai-smf-slice1
-
-# gNB logs
-kubectl -n blueprint logs -f deployment/oai-gnb
-
-# FlexRIC logs
-kubectl -n blueprint logs -f deployment/oai-flexric
+./bp-flexric-slicing/demo_slicing.sh
 ```
 
-## Network Slice Configuration
+This runs all tests automatically with formatted output.
 
-### Slice 1 (eMBB - Enhanced Mobile Broadband)
-- **S-NSSAI**: SST=1, SD=1
-- **DNN**: oai
-- **IP Pool**: 12.1.1.0/24
-- **Use Case**: High throughput applications
+---
 
-### Slice 2 (uRLLC - Ultra-Reliable Low-Latency)
-- **S-NSSAI**: SST=2, SD=1
-- **DNN**: oai
-- **IP Pool**: 12.2.1.0/24
-- **Use Case**: Low latency applications
-
-## Subscriber Configuration
-
-Subscribers are pre-configured in the MySQL database:
-
-| IMSI | Slice | Key | OPC |
-|------|-------|-----|-----|
-| 001010000000001 | SST=1, SD=1 | fec86ba6eb707ed08905757b1bb44b8f | C42449363BBAD02B66D16BC975D77CC1 |
-| 001010000000002 | SST=2, SD=1 | fec86ba6eb707ed08905757b1bb44b8f | C42449363BBAD02B66D16BC975D77CC1 |
-
-## Troubleshooting
-
-### Pods not starting
-```bash
-kubectl -n blueprint describe pod <pod-name>
-kubectl -n blueprint logs <pod-name>
-```
-
-### UE not getting IP
-1. Check SMF logs for PDU session errors
-2. Verify UPF is registered with NRF
-3. Check AMF logs for registration status
-
-```bash
-kubectl -n blueprint logs deployment/oai-smf-slice1 | grep -i "pdu\|error"
-kubectl -n blueprint logs deployment/oai-amf | grep -i "registration"
-```
-
-### FlexRIC not connecting to gNB
-```bash
-kubectl -n blueprint logs deployment/oai-flexric | grep -i "e2\|connect"
-kubectl -n blueprint logs deployment/oai-gnb | grep -i "e2\|flexric"
-```
-
-### Cleanup and redeploy
-```bash
-./start_slicing.sh cleanup
-sleep 10
-./start_slicing.sh deploy
-```
-
-## Project Structure
+## Architecture Summary
 
 ```
-bp-flexric-slicing/
-├── start_slicing.sh          # Main deployment script
-├── oai-5g-core/              # Core network Helm charts
-│   ├── mysql/                # Database with subscriber info
-│   ├── oai-nrf/              # Network Repository Function
-│   ├── oai-udr/              # Unified Data Repository
-│   ├── oai-udm/              # Unified Data Management
-│   ├── oai-ausf/             # Authentication Server Function
-│   ├── oai-amf/              # Access & Mobility Management
-│   ├── oai-smf-slice1/       # Session Management (Slice 1)
-│   ├── oai-smf-slice2/       # Session Management (Slice 2)
-│   ├── oai-upf-slice1/       # User Plane Function (Slice 1)
-│   └── oai-upf-slice2/       # User Plane Function (Slice 2)
-├── oai-gnb/                  # gNB with E2 agent
-├── oai-nr-ue-slice1/         # UE for Slice 1
-├── oai-nr-ue-slice2/         # UE for Slice 2
-└── oai-flexric/              # FlexRIC E2 controller
+                    ┌─────────────────────────────────────────────────────────┐
+                    │                      5G CORE                            │
+                    │  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐           │
+                    │  │ NRF │  │ UDR │  │ UDM │  │AUSF │  │ AMF │           │
+                    │  └─────┘  └─────┘  └─────┘  └─────┘  └──┬──┘           │
+                    │                                         │               │
+                    │            ┌────────────────────────────┴────────────┐  │
+                    │            │                                          │  │
+                    │    ┌───────▼───────┐                    ┌────────────▼─┐│
+                    │    │  SMF-Slice1   │                    │  SMF-Slice2  ││
+                    │    │  (SST=1,SD=1) │                    │  (SST=2,SD=1)││
+                    │    └───────┬───────┘                    └──────┬───────┘│
+                    │            │                                    │        │
+                    │    ┌───────▼───────┐                    ┌──────▼───────┐│
+                    │    │  UPF-Slice1   │                    │  UPF-Slice2  ││
+                    │    │ 12.1.1.0/24   │                    │ 12.2.1.0/24  ││
+                    │    └───────────────┘                    └──────────────┘│
+                    └─────────────────────────────────────────────────────────┘
+                                          │
+                    ┌─────────────────────┴─────────────────────┐
+                    │                   gNB                      │
+                    │         (Supports SST=1 and SST=2)         │
+                    └─────────────────────┬─────────────────────┘
+                                          │
+              ┌───────────────────────────┴───────────────────────────┐
+              │                                                        │
+      ┌───────▼───────┐                                      ┌────────▼───────┐
+      │     UE1       │                                      │      UE2       │
+      │ IMSI: ...101  │                                      │  IMSI: ...102  │
+      │ Slice 1 eMBB  │                                      │ Slice 2 uRLLC  │
+      │ IP: 12.1.1.x  │                                      │ IP: 12.2.1.x   │
+      └───────────────┘                                      └────────────────┘
 ```
 
-## References
+---
 
-- [OAI 5G Core Documentation](https://gitlab.eurecom.fr/oai/cn5g/oai-cn5g-fed)
-- [OAI RAN Documentation](https://gitlab.eurecom.fr/oai/openairinterface5g)
-- [FlexRIC Documentation](https://gitlab.eurecom.fr/mosaic5g/flexric)
-- [3GPP Network Slicing](https://www.3gpp.org/technologies/keywords-acronyms/network-slicing)
+## Quick Reference - Key Files
 
-## License
-
-This project uses OAI components which are licensed under OAI Public License V1.1.
-
+| Component | Configuration File |
+|-----------|-------------------|
+| AMF | `5G-oai-slicing/oai-5g-core/oai-amf/config.yaml` |
+| SMF-Slice1 | `5G-oai-slicing/oai-5g-core/oai-smf-slice1/config.yaml` |
+| SMF-Slice2 | `5G-oai-slicing/oai-5g-core/oai-smf-slice2/config.yaml` |
+| UPF-Slice1 | `5G-oai-slicing/oai-5g-core/oai-upf-slice1/config.yaml` |
+| UPF-Slice2 | `5G-oai-slicing/oai-5g-core/oai-upf-slice2/config.yaml` |
+| gNB | `5G-oai-slicing/oai-gnb/config.yaml` |
+| UE1 (eMBB) | `5G-oai-slicing/oai-nr-ue-slice1/values.yaml` |
+| UE2 (uRLLC) | `5G-oai-slicing/oai-nr-ue-slice2/values.yaml` |
+| Deployment Script | `5G-oai-slicing/start_slicing.sh` |
+| Demo Script | `5G-oai-slicing/demo_slicing.sh` |
