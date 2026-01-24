@@ -15,15 +15,15 @@ This project deploys a complete **5G network with Network Slicing** using OpenAi
 
 ### Deploy the Full Network
 ```bash
-cd /mnt/Studies/Sorbonne/Nova/Network-Slicing-using-OAI-and-OAI-5GC
-./bp-flexric-slicing/start_slicing.sh deploy
+cd 5G-oai-slicing
+./start_slicing.sh deploy
 ```
 
 This deploys 14 pods: MySQL, NRF, UDR, UDM, AUSF, AMF, SMF-Slice1, SMF-Slice2, UPF-Slice1, UPF-Slice2, FlexRIC, gNB, UE1, UE2.
 
 ### Cleanup
 ```bash
-./bp-flexric-slicing/start_slicing.sh cleanup
+./5G-oai-slicing/start_slicing.sh cleanup
 ```
 
 ---
@@ -95,33 +95,33 @@ kubectl exec -n blueprint $(kubectl get pods -n blueprint -o name | grep oai-nr-
 
 ### AMF Configuration (Routes UEs to correct SMF)
 ```bash
-cat bp-flexric-slicing/oai-5g-core/oai-amf/config.yaml | grep -A 20 "plmn_support_list"
+cat 5G-oai-slicing/oai-5g-core/oai-amf/config.yaml | grep -A 20 "plmn_support_list"
 ```
 Key: `nssai` section defines supported slices (SST=1,SD=1 and SST=2,SD=1)
 
 ### SMF-Slice1 Configuration (eMBB)
 ```bash
-cat bp-flexric-slicing/oai-5g-core/oai-smf-slice1/config.yaml | grep -A 10 "snssais"
+cat 5G-oai-slicing/oai-5g-core/oai-smf-slice1/config.yaml | grep -A 10 "snssais"
 ```
 
 ### SMF-Slice2 Configuration (uRLLC)
 ```bash
-cat bp-flexric-slicing/oai-5g-core/oai-smf-slice2/config.yaml | grep -A 10 "snssais"
+cat 5G-oai-slicing/oai-5g-core/oai-smf-slice2/config.yaml | grep -A 10 "snssais"
 ```
 
 ### UPF-Slice1 Configuration
 ```bash
-cat bp-flexric-slicing/oai-5g-core/oai-upf-slice1/config.yaml | grep -A 10 "snssais"
+cat 5G-oai-slicing/oai-5g-core/oai-upf-slice1/config.yaml | grep -A 10 "snssais"
 ```
 
 ### UPF-Slice2 Configuration
 ```bash
-cat bp-flexric-slicing/oai-5g-core/oai-upf-slice2/config.yaml | grep -A 10 "snssais"
+cat 5G-oai-slicing/oai-5g-core/oai-upf-slice2/config.yaml | grep -A 10 "snssais"
 ```
 
 ### gNB Configuration (Advertises both slices)
 ```bash
-cat bp-flexric-slicing/oai-gnb/config.yaml | grep -A 10 "plmn_list"
+cat 5G-oai-slicing/oai-gnb/config.yaml | grep -A 10 "plmn_list"
 ```
 
 ---
@@ -130,13 +130,13 @@ cat bp-flexric-slicing/oai-gnb/config.yaml | grep -A 10 "plmn_list"
 
 ### UE1 - Requests Slice 1 (eMBB)
 ```bash
-cat bp-flexric-slicing/oai-nr-ue-slice1/values.yaml | grep -A 10 "nssai"
+cat 5G-oai-slicing/oai-nr-ue-slice1/values.yaml | grep -A 10 "nssai"
 ```
 Key settings: `IMSI=001010000000101`, `DNN=slice1`, `SST=1`, `SD=1`
 
 ### UE2 - Requests Slice 2 (uRLLC)
 ```bash
-cat bp-flexric-slicing/oai-nr-ue-slice2/values.yaml | grep -A 10 "nssai"
+cat 5G-oai-slicing/oai-nr-ue-slice2/values.yaml | grep -A 10 "nssai"
 ```
 Key settings: `IMSI=001010000000102`, `DNN=slice2`, `SST=2`, `SD=1`
 
@@ -223,7 +223,7 @@ kubectl exec -n $NAMESPACE "$UE2_POD" -c nr-ue -- ping -c 20 -i 0.1 -I oaitun_ue
 ## 8. Run Full Demo
 
 ```bash
-./bp-flexric-slicing/demo_slicing.sh
+./5G-oai-slicing/demo_slicing.sh
 ```
 
 This runs all tests automatically with formatted output.
